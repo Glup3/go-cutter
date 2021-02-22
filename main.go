@@ -22,9 +22,9 @@ type TS struct {
 }
 
 func main() {
-	//args := os.Args[1:]
+	args := os.Args[1:]
 
-	timestamps, err := readTimestamps("./timestamps.txt")
+	timestamps, err := readTimestamps(args[1])
 
 	if err != nil {
 		panic(err)
@@ -39,12 +39,9 @@ func main() {
 	c := make(chan string, len(timestamps))
 	var names []string
 
-	vpath := "/Users/phuc/Downloads/valorant2.mp4"
-
 	for i, ts := range timestamps {
 		name := fmt.Sprintf("%s/test_valorant%d.mp4", dir, i)
-
-		go createClip(ts.start, ts.end, vpath, name, c)
+		go createClip(ts.start, ts.end, args[0], name, c)
 	}
 
 	for i := 0; i < len(timestamps); i++ {
