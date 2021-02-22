@@ -1,31 +1,53 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jtguibas/cinema"
 )
 
+// TS Timestamp
+type TS struct {
+	start time.Duration
+	end   time.Duration
+}
+
 func main() {
-	it := 3
-	c := make(chan string, it)
+	//args := os.Args[1:]
+
+	timestamps, err := readTimestamps("./timestamps.txt")
+
+	if err != nil {
+		panic(err)
+	}
+
+	dir, err := ioutil.TempDir(".", "temp")
+	if err != nil {
+		panic(err)
+	}
+	defer os.RemoveAll(dir)
+
+	c := make(chan string, len(timestamps))
 	var names []string
 
 	vpath := "/Users/phuc/Downloads/valorant2.mp4"
 
-	for i := 0; i < it; i++ {
-		name := fmt.Sprintf("test_valorant%d.mp4", i)
+	for i, ts := range timestamps {
+		name := fmt.Sprintf("%s/test_valorant%d.mp4", dir, i)
 
-		go createClip(i*7, (i+1)*3, vpath, name, c)
+		go createClip(ts.start, ts.end, vpath, name, c)
 	}
 
-	for i := 0; i < it; i++ {
+	for i := 0; i < len(timestamps); i++ {
 		names = append(names, <-c)
 	}
 
@@ -35,20 +57,47 @@ func main() {
 		panic(err)
 	}
 
-	clip.Concatenate("test_valorant.mp4")
+	clip.Concatenate("../test_valorant.mp4")
 }
 
-func createClip(startTime int, duration int, videoPath string, filename string, c chan string) {
+func readTimestamps(filename string) ([]TS, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
+	var timestamps []TS
+	scanner := bufio.NewScanner(file)
+
+	for scanner.Scan() {
+		ts := strings.Split(scanner.Text(), "-")
+
+		start, err := time.ParseDuration(ts[0])
+
+		if err != nil {
+			return nil, err
+		}
+
+		end, err := time.ParseDuration(ts[1])
+
+		if err != nil {
+			return nil, err
+		}
+
+		timestamps = append(timestamps, TS{start: start, end: end})
+	}
+
+	return timestamps, nil
+}
+
+func createClip(start time.Duration, end time.Duration, videoPath string, filename string, c chan string) {
 	video, err := cinema.Load(videoPath)
 	if err != nil {
 		panic(err)
 	}
 
-	start := time.Duration(startTime) * time.Second
-	end := start + time.Duration(duration)*time.Second
-
 	video.Trim(start, end)
-
 	video.Render(filename)
 
 	c <- filename
